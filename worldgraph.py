@@ -183,6 +183,98 @@ def generate(node_list, edge_list):
     return world_graph
 
 
+def adjust(world_graph, new_edges=None, edges_to_remove=None):
+    """
+    Adjusts and returns a modified world graph depending on given edge list
+    parameters.
+    """
+    if new_edges is None:
+        new_edges = []
+    if edges_to_remove is None:
+        edges_to_remove = []
+
+    edge_adjustments = {}
+    db_data = []
+    db_data_dict = {}
+
+    for new_edge in new_edges:
+        origin_map_name = new_edge.get("from").get("map")
+        origin_entrance_id = new_edge.get("from").get("id")
+        new_target_map_name = new_edge.get("to").get("map")
+        new_target_entrance_id = new_edge.get("to").get("id")
+        #requirements = new_edge.get("reqs")
+
+        # Sanity checks
+        # not target_map_id none
+        # not target_entrance_id none
+        # not origin_entrance_id string unless requirement change
+        # not target_entrance_id string unless requirement change
+
+        node_id = f"{origin_map_name}/{origin_entrance_id}"
+        if node_id not in edge_adjustments:
+            edge_adjustments[node_id] = []
+        edge_adjustments[node_id].append(new_edge)
+
+        # the condition below break when entrance rando to same map!
+        if origin_map_name != new_target_map_name:
+            for old_edge in world_graph[node_id]["edge_list"]:
+                if (
+                    old_edge["from"]["map"] == origin_map_name
+                and old_edge["from"]["id"]  == origin_entrance_id
+                ):
+                    old_target_map_info = old_edge["to"]
+                    break
+            old_target_map_data = (
+                MapArea.select(MapArea.area_id,
+                               MapArea.map_id,
+                               Node.entrance_id)
+                       .join(Node)
+                       .where(MapArea.name == old_target_map_info["map"])
+                       .where(Node.entrance_id == old_target_map_info["id"])
+                       .objects()
+                       .get()
+            )
+            db_key = (0xA3 << 24) \
+                   | (old_target_map_data.area_id << 16) \
+                   | (old_target_map_data.map_id  <<  8) \
+                   |  old_target_map_data.entrance_id
+
+            new_target_map_data = (
+                MapArea.select(MapArea.area_id,
+                               MapArea.map_id,
+                               Node.entrance_id)
+                       .join(Node)
+                       .where(MapArea.name == new_target_map_name)
+                       .where(Node.entrance_id == new_target_entrance_id)
+                       .objects()
+                       .get()
+            )
+            db_value = (new_target_map_data.area_id << 16) \
+                     | (new_target_map_data.map_id  <<  8) \
+                     |  new_target_map_data.entrance_id
+
+            db_data_dict[db_key]= db_value
+
+    for old_edge in edges_to_remove:
+        node_id = f"{old_edge['from']['map']}/{old_edge['from']['id']}"
+        stripped_edge_list = world_graph[node_id]["edge_list"]
+        for i, strip_edge in enumerate(stripped_edge_list):
+            if (
+                strip_edge["from"] == old_edge["from"]
+            and strip_edge["to"] == old_edge["to"]
+            ):
+                stripped_edge_list.pop(i)
+                break
+        world_graph[node_id]["edge_list"] = stripped_edge_list
+
+    for node_id, adjustment_list in edge_adjustments.items():
+        world_graph[node_id]["edge_list"].extend(adjustment_list)
+
+    for dbkey, dbvalue in db_data_dict.items():
+        db_data.append((dbkey, dbvalue))
+    return world_graph, db_data
+
+
 def check_graph():
     """
     Generate world graph from default entrance links and edges, then run a few validation checks

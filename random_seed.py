@@ -50,7 +50,14 @@ class RandomSeed:
         if world_graph is None:
             print("Generating World Graph ...")
             world_graph = generate_world_graph(None, None)
+
+        print(world_graph.get("KPA_32/0"))
+        # Modify entrances if needed
+        if self.rando_settings.shorten_bowsers_castle["value"]:
+            self.entrance_list, world_graph = get_shorter_bowsercastle(world_graph)
         
+        print(world_graph.get("KPA_32/0"))
+
         self.init_starting_partners(self.rando_settings)
         self.init_starting_map(self.rando_settings)
         self.init_starting_items(self.rando_settings)
@@ -82,6 +89,7 @@ class RandomSeed:
                             keyitems_outside_dungeon=self.rando_settings.keyitems_outside_dungeon,
                             starting_items=self.starting_items,
                             add_item_pouches=self.rando_settings.add_item_pouches,
+                            shorten_bowsers_castle=self.rando_settings.shorten_bowsers_castle["value"],
                             world_graph=world_graph):
             pass
 
@@ -91,10 +99,6 @@ class RandomSeed:
         # Make everything inexpensive
         #set_cheap_shopitems(placed_items)
         #self.placed_items = get_alpha_prices(self.placed_items)
-
-        # Modify entrances if needed
-        if self.rando_settings.shorten_bowsers_castle["value"]:
-            self.entrance_list = get_shorter_bowsercastle()
 
         # Randomize chapter difficulty / enemy stats if needed
         self.enemy_stats, self.chapter_changes = get_shuffled_chapter_difficulty(
